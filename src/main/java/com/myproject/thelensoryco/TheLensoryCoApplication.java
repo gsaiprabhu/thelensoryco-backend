@@ -11,8 +11,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication
 public class TheLensoryCoApplication
 {
-    public static void main( MysqlxDatatypes.Scalar.String[] args )
-    {
-        System.out.println( "Hello World!" );
+    public static void main(String[] args) {
+        SpringApplication.run(TheLensoryCoApplication.class, args);
     }
 }
