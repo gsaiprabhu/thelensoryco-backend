@@ -2,9 +2,12 @@ package com.myproject.thelensoryco.controller;
 
 import com.myproject.thelensoryco.entity.Photo;
 import com.myproject.thelensoryco.repository.PhotoRepository;
+import com.myproject.thelensoryco.service.ImageUploadService;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -13,9 +16,12 @@ import java.util.List;
 public class PhotoController {
 
     private final PhotoRepository photoRepository;
+    private final ImageUploadService imageUploadService;
 
-    public PhotoController(PhotoRepository photoRepository) {
+    public PhotoController(PhotoRepository photoRepository,
+                           ImageUploadService imageUploadService) {
         this.photoRepository = photoRepository;
+        this.imageUploadService = imageUploadService;
     }
 
     @GetMapping
@@ -23,9 +29,22 @@ public class PhotoController {
         return photoRepository.findAll();
     }
 
-    @PostMapping
-    public Photo addPhoto(@Valid @RequestBody Photo photo) {
-        return photoRepository.save(photo);
+    @PostMapping(consumes = "multipart/form-data")
+    public ResponseEntity<Photo> addPhoto(
+            @RequestParam("title") String title,
+            @RequestParam(value = "description", required = false) String description,
+            @RequestParam("file") MultipartFile file) {
+
+        String imageUrl = imageUploadService.uploadImage(file);
+
+        Photo photo = Photo.builder()
+                .title(title)
+                .description(description)
+                .imageUrl(imageUrl)
+                .build();
+
+        Photo savedPhoto = photoRepository.save(photo);
+        return new ResponseEntity<>(savedPhoto, HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
@@ -37,7 +56,6 @@ public class PhotoController {
                 .map(existingPhoto -> {
                     existingPhoto.setTitle(updatedPhoto.getTitle());
                     existingPhoto.setDescription(updatedPhoto.getDescription());
-                    existingPhoto.setImageUrl(updatedPhoto.getImageUrl());
 
                     Photo savedPhoto = photoRepository.save(existingPhoto);
                     return ResponseEntity.ok(savedPhoto);
@@ -47,11 +65,19 @@ public class PhotoController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletePhoto(@PathVariable Long id) {
-        if (!photoRepository.existsById(id)) {
+
+        final Photo photo = photoRepository.findById(id).orElse(null);
+
+        if (photo == null) {
             return ResponseEntity.notFound().build();
         }
 
-        photoRepository.deleteById(id);
+        // delete image from Cloudinary
+        imageUploadService.deleteImage(photo.getImageUrl());
+
+        // delete DB record
+        photoRepository.delete(photo);
+
         return ResponseEntity.noContent().build();
     }
 }
